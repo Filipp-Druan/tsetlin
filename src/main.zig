@@ -1,46 +1,59 @@
 //! By convention, main.zig is where your main function lives in the case that
 //! you are building an executable. If you are making a library, the convention
 //! is to delete this file and start with root.zig instead.
-
-pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
-
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try bw.flush(); // Don't forget to flush!
-}
-
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
-
-test "use other module" {
-    try std.testing.expectEqual(@as(i32, 150), lib.add(100, 50));
-}
-
-test "fuzz example" {
-    const Context = struct {
-        fn testOne(context: @This(), input: []const u8) anyerror!void {
-            _ = context;
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-            try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
-        }
-    };
-    try std.testing.fuzz(Context{}, Context.testOne, .{});
-}
-
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
-/// This imports the separate module containing `root.zig`. Take a look in `build.zig` for details.
-const lib = @import("tsetlin_lib");
+pub fn main() !void {}
+
+const TM = struct {
+    clouses: []Clause,
+};
+
+const Clause = struct {
+    features_num: isize,
+    include_weights: []Weight, // Думаю, что такого диапазона хватит
+    exclude_weights: []Weight,
+    max_depth: u8, // Не должна перешагивать через диапазон
+
+    const Weight = i8;
+
+    pub fn new(allocator: Allocator, features_num: isize, max_depth: u4) !Clause {
+        const include_weights = try allocator.alloc(Weight, features_num);
+        const exclude_weights = try allocator.alloc(Weight, features_num);
+
+        return .{
+            .features_num = features_num,
+            .include_weights = include_weights,
+            .exclude_weights = exclude_weights,
+            .max_depth = max_depth,
+        };
+    }
+
+    pub fn predict(clause: *Clause, patterns: []const bool) bool {
+        const include_res = processWeights(clause.include_weights, patterns);
+
+        if (include_res) { // Так я реализовал более эффективный and
+            return processWeights(clause.exclude_weights, patterns);
+        } else {
+            return false;
+        }
+    }
+
+    fn processWeights(weights: []const Weight, patterns: []const bool) bool {
+        for (weights, patterns) |weight, pattern| {
+            if (!isActive(weight)) continue;
+            if (pattern == true) continue;
+
+            if (pattern == false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    fn isActive(weight: Weight) bool {
+        return weight >= 0;
+    }
+};
